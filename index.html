@@ -25,8 +25,11 @@
   <body>
     <script>
       const container = document.createElement("div");
+      const svljee = document.createElement("div");
       const bodolt = document.createElement("div");
+      container.appendChild(svljee);
       container.appendChild(bodolt);
+      svljee.classList.add("svljee");
       bodolt.classList.add("bodolt");
       const buttons = document.createElement("div");
       const buttonac = document.createElement("button");
@@ -120,6 +123,57 @@
 
       document.body.appendChild(container);
       buttons.classList.add("button");
+      const round = document.createElement("div");
+      container.appendChild(round);
+      round.classList.add("round");
+
+      let displayValue = "";
+
+      const operators = {
+        "+": (a, b) => a + b,
+        "-": (a, b) => a - b,
+        "×": (a, b) => a * b,
+        "÷": (a, b) => a / b,
+      };
+
+      function calculate(expression) {
+        // Tokenize: тоонууд + операторууд салгах
+        const tokens = expression.match(/(\d+(\.\d+)?|[+\-×÷])/g);
+        if (!tokens) return "";
+
+        // 1. × ÷ эхэлж бодно
+        let stack = [];
+        let currentOp = null;
+        for (let token of tokens) {
+          if (token in operators) {
+            currentOp = token;
+          } else {
+            let num = parseFloat(token);
+            if (currentOp === "×" || currentOp === "÷") {
+              let prev = stack.pop();
+              let result = operators[currentOp](prev, num);
+              stack.push(result);
+              currentOp = null;
+            } else {
+              stack.push(num);
+              if (currentOp) {
+                stack.push(currentOp);
+                currentOp = null;
+              }
+            }
+          }
+        }
+
+        // 2. + - дараагийн ээлжинд бодно
+        let result = stack[0];
+        for (let i = 1; i < stack.length; i += 2) {
+          let op = stack[i];
+          let num = stack[i + 1];
+          result = operators[op](result, num);
+        }
+
+        return result;
+      }
 
       const ajil = [
         button0,
@@ -144,21 +198,29 @@
       ];
       ajil.forEach((button) => {
         button.addEventListener("click", () => {
-          if (button === buttonac) {
-            display.textContent = "";
-          } else if (button === button11) {
-            // "="
-            try {
-              let expression = display.textContent
-                .replace(/×/g, "*")
-                .replace(/÷/g, "/");
-              display.textContent = eval(expression);
-            } catch {
-              display.textContent = "error";
+          let val = button.innerHTML;
+
+          if (val === "AC") {
+            displayValue = "";
+          } else if (val === "=") {
+            displayValue = calculate(displayValue).toString();
+          } else if (val === "+/-") {
+            if (displayValue) {
+              if (displayValue.startsWith("-")) {
+                displayValue = displayValue.substring(1);
+              } else {
+                displayValue = "-" + displayValue;
+              }
+            }
+          } else if (val === "%") {
+            if (displayValue) {
+              displayValue = (parseFloat(displayValue) / 100).toString();
             }
           } else {
-            display.textContent += button.textContent;
+            displayValue += val;
           }
+
+          bodolt.innerHTML = displayValue;
         });
       });
     </script>
