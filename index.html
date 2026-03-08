@@ -127,52 +127,166 @@
       container.appendChild(round);
       round.classList.add("round");
 
-      let displayValue = "";
+      let expression = "";
+      let currentInput = "0";
+      let justEvaluated = false;
 
-      const operators = {
-        "+": (a, b) => a + b,
-        "-": (a, b) => a - b,
-        "×": (a, b) => a * b,
-        "÷": (a, b) => a / b,
-      };
+      const isOperator = (value) => ["+", "-", "×", "÷"].includes(value);
 
-      function calculate(expression) {
-        // Tokenize: тоонууд + операторууд салгах
-        const tokens = expression.match(/(\d+(\.\d+)?|[+\-×÷])/g);
-        if (!tokens) return "";
+      function formatResult(value) {
+        if (!Number.isFinite(value)) return "Error";
+        const rounded = Math.round(value * 1e10) / 1e10;
+        return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+      }
 
-        // 1. × ÷ эхэлж бодно
-        let stack = [];
-        let currentOp = null;
-        for (let token of tokens) {
-          if (token in operators) {
-            currentOp = token;
-          } else {
-            let num = parseFloat(token);
-            if (currentOp === "×" || currentOp === "÷") {
-              let prev = stack.pop();
-              let result = operators[currentOp](prev, num);
-              stack.push(result);
-              currentOp = null;
-            } else {
-              stack.push(num);
-              if (currentOp) {
-                stack.push(currentOp);
-                currentOp = null;
-              }
+      function tokenize(expr) {
+        if (!expr) return [];
+        const tokens = [];
+        let number = "";
+
+        for (let i = 0; i < expr.length; i += 1) {
+          const char = expr[i];
+          if (/[0-9.]/.test(char)) {
+            number += char;
+            continue;
+          }
+
+          if (isOperator(char)) {
+            if (number) {
+              tokens.push(number);
+              number = "";
             }
+            tokens.push(char);
           }
         }
 
-        // 2. + - дараагийн ээлжинд бодно
-        let result = stack[0];
-        for (let i = 1; i < stack.length; i += 2) {
-          let op = stack[i];
-          let num = stack[i + 1];
-          result = operators[op](result, num);
+        if (number) tokens.push(number);
+        return tokens;
+      }
+
+      function calculate(expr) {
+        const tokens = tokenize(expr);
+        if (!tokens.length) return "0";
+
+        const stack = [];
+        for (let i = 0; i < tokens.length; i += 1) {
+          const token = tokens[i];
+
+          if (!isOperator(token)) {
+            stack.push(parseFloat(token));
+            continue;
+          }
+
+          const right = parseFloat(tokens[i + 1]);
+          if (!Number.isFinite(right) || !stack.length) return "Error";
+
+          if (token === "×" || token === "÷") {
+            const left = stack.pop();
+            if (token === "÷" && right === 0) return "Error";
+            stack.push(token === "×" ? left * right : left / right);
+            i += 1;
+          } else {
+            stack.push(token);
+          }
         }
 
-        return result;
+        let result = stack[0];
+        for (let i = 1; i < stack.length; i += 2) {
+          const operator = stack[i];
+          const value = stack[i + 1];
+          if (!Number.isFinite(value)) return "Error";
+          result = operator === "+" ? result + value : result - value;
+        }
+
+        return formatResult(result);
+      }
+
+      function refreshDisplay() {
+        const shown = expression + currentInput;
+        bodolt.innerHTML = shown || "0";
+      }
+
+      function appendDigit(digit) {
+        if (justEvaluated) {
+          expression = "";
+          currentInput = "0";
+          justEvaluated = false;
+        }
+
+        if (digit === "." && currentInput.includes(".")) return;
+
+        if (currentInput === "0" && digit !== ".") {
+          currentInput = digit;
+          return;
+        }
+
+        if (currentInput === "-0" && digit !== ".") {
+          currentInput = "-" + digit;
+          return;
+        }
+
+        currentInput += digit;
+      }
+
+      function appendOperator(operator) {
+        if (currentInput === "Error") return;
+
+        if (justEvaluated) {
+          justEvaluated = false;
+          expression = currentInput;
+          currentInput = "";
+        }
+
+        if (currentInput !== "") {
+          expression += currentInput;
+          currentInput = "";
+        }
+
+        if (!expression) return;
+
+        const lastChar = expression[expression.length - 1];
+        if (isOperator(lastChar)) {
+          expression = expression.slice(0, -1) + operator;
+        } else {
+          expression += operator;
+        }
+      }
+
+      function toggleSign() {
+        if (currentInput === "") {
+          currentInput = "-0";
+          return;
+        }
+        if (currentInput === "0") return;
+        currentInput = currentInput.startsWith("-")
+          ? currentInput.slice(1)
+          : "-" + currentInput;
+      }
+
+      function toPercent() {
+        if (currentInput === "" || currentInput === "Error") return;
+        const value = parseFloat(currentInput);
+        currentInput = formatResult(value / 100);
+      }
+
+      function evaluateAll() {
+        if (currentInput === "Error") {
+          expression = "";
+          currentInput = "0";
+          return;
+        }
+
+        let fullExpression = expression + currentInput;
+        if (!fullExpression) return;
+
+        if (isOperator(fullExpression[fullExpression.length - 1])) {
+          fullExpression = fullExpression.slice(0, -1);
+        }
+
+        const result = calculate(fullExpression);
+        expression = "";
+        currentInput = result;
+        justEvaluated = true;
       }
 
       const ajil = [
@@ -201,28 +315,26 @@
           let val = button.innerHTML;
 
           if (val === "AC") {
-            displayValue = "";
+            expression = "";
+            currentInput = "0";
+            justEvaluated = false;
           } else if (val === "=") {
-            displayValue = calculate(displayValue).toString();
+            evaluateAll();
           } else if (val === "+/-") {
-            if (displayValue) {
-              if (displayValue.startsWith("-")) {
-                displayValue = displayValue.substring(1);
-              } else {
-                displayValue = "-" + displayValue;
-              }
-            }
+            toggleSign();
           } else if (val === "%") {
-            if (displayValue) {
-              displayValue = (parseFloat(displayValue) / 100).toString();
-            }
+            toPercent();
+          } else if (isOperator(val)) {
+            appendOperator(val);
           } else {
-            displayValue += val;
+            appendDigit(val);
           }
 
-          bodolt.innerHTML = displayValue;
+          refreshDisplay();
         });
       });
+
+      refreshDisplay();
     </script>
   </body>
 </html>
